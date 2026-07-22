@@ -146,6 +146,18 @@ class RestaurantRepository:
         )
         return [self._row_to_restaurant(r) for r in rows]
 
+    def list_incomplete_profiles(self) -> list[Restaurant]:
+        """Restaurants missing website and/or phone — candidates for web enrichment."""
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM restaurants
+            WHERE (website IS NULL OR website = '')
+               OR (phone IS NULL OR phone = '')
+            ORDER BY name
+            """
+        )
+        return [self._row_to_restaurant(r) for r in rows]
+
     def count_restaurants(self) -> int:
         row = self.db.fetchone("SELECT COUNT(*) AS c FROM restaurants")
         return int(row["c"]) if row else 0
