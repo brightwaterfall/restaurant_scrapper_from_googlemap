@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.python-version
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Crawler runtime data
+restaurant_crawler/data/*.db
+restaurant_crawler/data/*.db-*
+restaurant_crawler/data/crawl_state.json
+restaurant_crawler/data/images/**
+restaurant_crawler/data/menus/**
+!restaurant_crawler/data/images/.gitkeep
+!restaurant_crawler/data/menus/.gitkeep
+restaurant_crawler/logs/**
+!restaurant_crawler/logs/.gitkeep
+restaurant_crawler/exports/**
+!restaurant_crawler/exports/.gitkeep
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

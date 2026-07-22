@@ -1,0 +1,86 @@
+# Restaurant Crawler — João Pessoa, Paraíba, Brazil
+city: "João Pessoa"
+state: "Paraíba"
+country: "Brazil"
+city_slug: "joao-pessoa"
+
+# Geographic bounds (approximate bounding box for João Pessoa)
+geo:
+  south: -7.25
+  west: -34.95
+  north: -7.05
+  east: -34.75
+  center_lat: -7.1195
+  center_lng: -34.8450
+
+# HTTP / concurrency
+max_concurrent: 5
+timeout: 30
+retry_attempts: 5
+retry_min_wait: 1.0
+retry_max_wait: 30.0
+request_delay: 1.5
+respect_robots_txt: true
+
+# Browser
+headless: true
+playwright_timeout_ms: 30000
+
+# Deduplication (RapidFuzz)
+dedup_threshold: 90
+
+# Paths (relative to project root)
+output_folder: "restaurant_crawler/exports"
+database_path: "restaurant_crawler/data/restaurants.db"
+images_folder: "restaurant_crawler/data/images"
+menus_folder: "restaurant_crawler/data/menus"
+logs_folder: "restaurant_crawler/logs"
+state_file: "restaurant_crawler/data/crawl_state.json"
+
+# Logging
+log_level: "INFO"
+log_rotation: "50 MB"
+log_retention: "30 days"
+
+# Discovery sources (public APIs / directories)
+discovery:
+  use_overpass: true
+  overpass_url: "https://overpass-api.de/api/interpreter"
+  overpass_timeout: 90
+  use_nominatim: true
+  nominatim_url: "https://nominatim.openstreetmap.org"
+  amenity_tags:
+    - restaurant
+    - fast_food
+    - cafe
+    - food_court
+    - ice_cream
+    - bar
+  cuisine_nodes: true
+
+# Menu / OCR
+ocr:
+  enabled: true
+  language: "por+eng"
+  tesseract_cmd: null  # auto-detect; set path if needed
+
+# Image download
+images:
+  max_per_restaurant: 30
+  min_width: 200
+  min_height: 200
+  prefer_original: true
+  concurrent_downloads: 4
+
+# Validation
+validation:
+  require_address: true
+  require_coordinates: true
+  require_menu: false  # warn only; many sites lack structured menus
+  require_photos: false
+  coordinate_bounds_check: true
+
+# User agent rotation pool (ASCII only — HTTP headers cannot carry accents)
+user_agents:
+  - "RestaurantCrawler/1.0 (+research; Joao Pessoa data collection; polite bot)"
+  - "Mozilla/5.0 (compatible; RestaurantCrawler/1.0; +https://example.local/bot)"
