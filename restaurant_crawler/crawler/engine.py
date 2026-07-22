@@ -10,7 +10,9 @@ from urllib.parse import urljoin, urlparse
 from restaurant_crawler.config.settings import Settings, get_settings
 from restaurant_crawler.crawler.browser import BrowserFetcher
 from restaurant_crawler.crawler.discovery import RestaurantDiscovery
+from restaurant_crawler.crawler.enrichment import RestaurantEnricher
 from restaurant_crawler.crawler.resume import CrawlStateManager
+from restaurant_crawler.crawler.web_search import ensure_http_url
 from restaurant_crawler.crawler.website_detector import WebsiteDetector, WebsiteType
 from restaurant_crawler.database.connection import Database
 from restaurant_crawler.database.repository import RestaurantRepository
@@ -54,6 +56,8 @@ class CrawlEngine:
             "failed": 0,
             "menus": 0,
             "photos": 0,
+            "enriched": 0,
+            "websites_found": 0,
             "resumed": resume,
         }
 
@@ -176,7 +180,39 @@ class CrawlEngine:
             )
         )
 
+        # Normalize bare domains and enrich from public web/social/delivery search
+        restaurant.website = ensure_http_url(restaurant.website)
+        enricher = RestaurantEnricher(self.settings, http)
+        if (
+            self.settings.enrichment.enrich_during_crawl
+            and enricher.needs_enrichment(restaurant)
+        ):
+            enrichment = await enricher.enrich(restaurant)
+            for source in enrichment.sources:
+                self.repo.insert_source(source)
+            stats["enriched"] = stats.get("enriched", 0) + 1
+            if enrichment.found_website:
+                stats["websites_found"] = stats.get("websites_found", 0) + 1
+            self.repo.insert_log(
+                CrawlLog(
+                    restaurant_id=restaurant.id,
+                    level="INFO",
+                    event="enriched",
+                    message=(
+                        f"Web enrichment hits={enrichment.search_hits}; "
+                        f"website={bool(restaurant.website)}; "
+                        f"phone={bool(restaurant.phone)}; "
+                        f"social={enrichment.found_social}; "
+                        f"delivery={enrichment.found_delivery}"
+                    ),
+                    url=restaurant.website,
+                    details=enricher.build_advertising_profile(restaurant),
+                )
+            )
+            self.repo.upsert_restaurant(restaurant)
+
         if not restaurant.website:
+            # No official site found — keep Maps/social/delivery essentials and continue
             restaurant.status = "scraped"
             restaurant.ensure_maps_url()
             self.repo.upsert_restaurant(restaurant)
@@ -302,6 +338,102 @@ class CrawlEngine:
             combined.append(page)
             current_html = page
         return "\n".join(combined)
+
+    async def enrich_incomplete(self, limit: int | None = None) -> dict[str, Any]:
+        """Search the public web for restaurants missing website/phone/social data."""
+        targets = self.repo.list_incomplete_profiles()
+        if limit is not None:
+            targets = targets[:limit]
+        stats: dict[str, Any] = {
+            "candidates": len(targets),
+            "enriched": 0,
+            "websites_found": 0,
+            "phones_found": 0,
+            "social_found": 0,
+            "delivery_found": 0,
+        }
+        logger.info("Enriching {} incomplete restaurant profiles", len(targets))
+
+        async with HttpClient(self.settings) as http:
+            enricher = RestaurantEnricher(self.settings, http)
+            semaphore = asyncio.Semaphore(self.settings.max_concurrent)
+
+            async def worker(restaurant: Restaurant) -> None:
+                async with semaphore:
+                    had_website = bool(restaurant.website)
+                    had_phone = bool(restaurant.phone)
+                    try:
+                        enrichment = await enricher.enrich(restaurant)
+                        for source in enrichment.sources:
+                            self.repo.insert_source(source)
+                        self.repo.upsert_restaurant(restaurant)
+                        stats["enriched"] += 1
+                        if restaurant.website and not had_website:
+                            stats["websites_found"] += 1
+                        if restaurant.phone and not had_phone:
+                            stats["phones_found"] += 1
+                        if enrichment.found_social:
+                            stats["social_found"] += 1
+                        if enrichment.found_delivery:
+                            stats["delivery_found"] += 1
+                        self.repo.insert_log(
+                            CrawlLog(
+                                restaurant_id=restaurant.id,
+                                level="INFO",
+                                event="enriched",
+                                message=(
+                                    f"Enriched {restaurant.name}: "
+                                    f"hits={enrichment.search_hits} "
+                                    f"website={restaurant.website} "
+                                    f"phone={restaurant.phone}"
+                                ),
+                                url=restaurant.website,
+                                details=enricher.build_advertising_profile(restaurant),
+                            )
+                        )
+                        # If a website was newly found, scrape it for menu/photos
+                        if restaurant.website and not had_website:
+                            restaurant.status = "discovered"
+                            self.repo.upsert_restaurant(restaurant)
+                    except Exception as exc:
+                        logger.error("Enrichment failed for {}: {}", restaurant.name, exc)
+
+            await asyncio.gather(*[worker(r) for r in targets])
+
+        # Scrape restaurants that gained a website during enrichment
+        pending = [r for r in self.repo.list_pending() if r.website]
+        if pending:
+            logger.info("Scraping {} restaurants with newly found websites", len(pending))
+            async with HttpClient(self.settings) as http:
+                browser = BrowserFetcher(self.settings)
+                menu_parser = MenuParser(self.settings, http)
+                image_dl = ImageDownloader(self.settings, http)
+                scrape_stats: dict[str, Any] = {
+                    "scraped": 0,
+                    "failed": 0,
+                    "menus": 0,
+                    "photos": 0,
+                }
+                try:
+                    semaphore = asyncio.Semaphore(self.settings.max_concurrent)
+
+                    async def scrape_worker(restaurant: Restaurant) -> None:
+                        async with semaphore:
+                            await self._scrape_restaurant(
+                                restaurant,
+                                http,
+                                browser,
+                                menu_parser,
+                                image_dl,
+                                scrape_stats,
+                            )
+
+                    await asyncio.gather(*[scrape_worker(r) for r in pending])
+                finally:
+                    await browser.close()
+            stats["followup_scrape"] = scrape_stats
+
+        return stats
 
     async def process_menus_only(self) -> dict[str, Any]:
         async with HttpClient(self.settings) as http:

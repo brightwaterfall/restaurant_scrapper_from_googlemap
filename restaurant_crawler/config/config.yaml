@@ -58,6 +58,17 @@ discovery:
     - bar
   cuisine_nodes: true
 
+# Online enrichment (DuckDuckGo public search → website / social / delivery)
+enrichment:
+  enabled: true
+  max_queries: 4
+  max_results_per_query: 8
+  max_total_results: 15
+  name_match_threshold: 75
+  fetch_discovered_pages: true
+  enrich_during_crawl: true
+  reenrich_missing: true
+
 # Menu / OCR
 ocr:
   enabled: true

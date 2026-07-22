@@ -93,6 +93,10 @@ restaurant-scrapper/
 # Full crawl (discover + scrape + export + validate)
 python main.py crawl
 
+# Enrich incomplete profiles via public web search (website / social / phone / delivery)
+python main.py enrich
+python main.py enrich --limit 50
+
 # Resume interrupted run
 python main.py resume
 
@@ -109,6 +113,18 @@ python main.py images
 # Database stats
 python main.py stats
 ```
+
+### Online enrichment
+
+OSM often lacks websites. During `crawl` and via `enrich`, the crawler searches the public web (DuckDuckGo HTML) for each restaurant and extracts:
+
+- Official website
+- Instagram / Facebook
+- Phone / email (from snippets and pages)
+- Delivery platforms (iFood, Rappi, etc.)
+- Google Maps search URL
+
+Respects robots.txt and polite delays. Google Maps place pages are not scraped (ToS); Maps links are generated for discovery.
 
 Custom config:
 
