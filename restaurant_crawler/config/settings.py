@@ -57,6 +57,17 @@ class ValidationConfig(BaseModel):
     coordinate_bounds_check: bool = True
 
 
+class EnrichmentConfig(BaseModel):
+    enabled: bool = True
+    max_queries: int = 4
+    max_results_per_query: int = 8
+    max_total_results: int = 15
+    name_match_threshold: int = 75
+    fetch_discovered_pages: bool = True
+    enrich_during_crawl: bool = True
+    reenrich_missing: bool = True
+
+
 class Settings(BaseModel):
     city: str
     state: str
@@ -86,6 +97,7 @@ class Settings(BaseModel):
     ocr: OcrConfig = Field(default_factory=OcrConfig)
     images: ImagesConfig = Field(default_factory=ImagesConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
+    enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
     user_agents: list[str] = Field(default_factory=list)
 
     @field_validator(

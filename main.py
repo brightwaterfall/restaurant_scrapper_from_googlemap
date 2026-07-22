@@ -111,6 +111,24 @@ def validate_cmd() -> None:
         console.print(f"  {name}: {path}")
 
 
+@app.command("enrich")
+def enrich_cmd(
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        "-n",
+        help="Max restaurants to enrich (default: all incomplete)",
+    ),
+) -> None:
+    """Search the public web for website / social / phone / delivery links."""
+    engine = _engine()
+    console.print("[bold]Web enrichment[/bold] (DuckDuckGo + public pages)")
+    result = asyncio.run(engine.enrich_incomplete(limit=limit))
+    _print_stats(result)
+    export_cmd()
+    validate_cmd()
+
+
 @app.command("images")
 def images_cmd() -> None:
     """Download / retry restaurant images only."""
